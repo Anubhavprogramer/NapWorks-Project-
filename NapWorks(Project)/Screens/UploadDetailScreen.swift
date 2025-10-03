@@ -1,0 +1,76 @@
+import SwiftUI
+
+struct UploadDetailScreen: View {
+    let image: UIImage
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var imageName: String = ""
+    @State private var isUploading: Bool = false
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 15))
+                
+                TextField("Reference Name", text: $imageName)
+                    .padding()
+                    .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.black, lineWidth: 1)
+                    )
+                    .frame(width: 340)
+                
+                Button(action: {
+                    uploadImage()
+                }) {
+                    if isUploading {
+                        ProgressView()
+                            .frame(width: 100, height: 50)
+                    } else {
+                        Text("Submit")
+                            .fontWeight(.bold)
+                            .frame(width: 100, height: 50)
+                            .background(imageName.isEmpty ? Color.gray : Color.green)
+                            .foregroundColor(.white)
+                            .cornerRadius(15)
+                    }
+                }
+                .disabled(imageName.isEmpty || isUploading) // disable if name is empty or uploading
+                
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Upload Image")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(trailing: Button("Close") {
+                dismiss()
+            })
+        }
+    }
+    
+    private func uploadImage() {
+        isUploading = true
+        FirebaseManager.shared.uploadImage(image: image, imageName: imageName) { result in
+            switch result {
+            case .success(let url):
+                FirebaseManager.shared.saveImageMetadata(name: imageName, url: url) { error in
+                    isUploading = false
+                    if let error = error {
+                        print("Firestore error: \(error)")
+                    } else {
+                        print("Upload successful")
+                        dismiss()
+                    }
+                }
+            case .failure(let error):
+                isUploading = false
+                print("Upload error: \(error)")
+            }
+        }
+    }
+}

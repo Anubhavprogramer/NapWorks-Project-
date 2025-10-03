@@ -6,16 +6,38 @@
 //
 
 import SwiftUI
+import FirebaseCore
 
 struct ContentView: View {
+    
+    init() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor.systemGray4  // custom background
+        appearance.stackedLayoutAppearance.selected.iconColor = .systemGreen
+        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor.systemGreen]
+        appearance.shadowColor = UIColor.systemGray3
+        
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+        
+        FirebaseApp.configure()
+    }
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView{
+            MainScreen()
+                .tabItem {
+                    Image(systemName: "house")
+                    Text("Upload")
+                }
+            
+            ImagesScreen()
+                .tabItem {
+                    Image(systemName: "person.crop.circle")
+                    Text("Images")
+                }
         }
-        .padding()
     }
 }
 

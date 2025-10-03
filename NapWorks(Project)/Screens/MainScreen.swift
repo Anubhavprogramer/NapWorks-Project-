@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AVFoundation
 
 
 
@@ -140,18 +141,60 @@ struct MainScreen: View {
     
     // MARK: - Helper Methods
     private func openPhotoLibrary() {
+        print("Opening photo library...")
         sourceType = .photoLibrary
         showingImagePicker = true
+        print("Photo library opened")
     }
     
     private func openCamera() {
+        print("Attempting to open camera...")
+        
         // Check if camera is available
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            print("Camera not available")
+            print("Camera not available on this device")
             return
         }
-        sourceType = .camera
-        showingImagePicker = true
+        
+        // For simulator or devices without camera permission setup
+        #if targetEnvironment(simulator)
+        print("Camera not available in simulator, opening photo library instead")
+        openPhotoLibrary()
+        return
+        #endif
+        
+        // Check camera permission
+        let cameraAuthStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        
+        switch cameraAuthStatus {
+        case .authorized:
+            print("Camera authorized, opening camera...")
+            sourceType = .camera
+            showingImagePicker = true
+            
+        case .notDetermined:
+            print("Camera permission not determined, requesting...")
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        print("Camera permission granted")
+                        self.sourceType = .camera
+                        self.showingImagePicker = true
+                    } else {
+                        print("Camera permission denied, opening photo library instead")
+                        self.openPhotoLibrary()
+                    }
+                }
+            }
+            
+        case .denied, .restricted:
+            print("Camera permission denied or restricted, opening photo library instead")
+            openPhotoLibrary()
+            
+        @unknown default:
+            print("Unknown camera authorization status, opening photo library instead")
+            openPhotoLibrary()
+        }
     }
 }
 

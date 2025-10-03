@@ -54,13 +54,13 @@ struct MainScreen: View {
 
             // Button to open the Gallery directly
             Button(action: {
-                sourceType = .photoLibrary
+                sourceType = .camera
                 showingImagePicker = true
             }) {
                 HStack {
                     Image(systemName: "camera.fill")
                         .foregroundColor(.green)
-                    Text("Browse Gallery")
+                    Text("Browse camera")
                         .foregroundColor(.green)
                 }
             }

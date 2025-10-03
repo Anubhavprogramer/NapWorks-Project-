@@ -13,76 +13,145 @@ struct MainScreen: View {
    
     @State private var showingImagePicker = false
     @State private var sourceType: UIImagePickerController.SourceType = .photoLibrary
-    @State private var selectedUIImage: UIImage? = nil   // Store real UIImage
-    @State private var showDetailScreen = false  // Controls modal
     @State private var selectedImage: IdentifiableImage? = nil
     
     var body: some View {
-        VStack(spacing: 20) {
-            
-            // Image or Placeholder
-           
-            Button(action: {
-                sourceType = .photoLibrary
-                showingImagePicker = true
-            }) {
-                VStack(spacing: 10) {
-                    Image(systemName: "photo")
-                        .font(.system(size: 50))
+        NavigationView {
+            VStack(spacing: 30) {
+                
+                Spacer()
+                
+                // App Title
+                VStack(spacing: 8) {
+                    Image(systemName: "photo.stack.fill")
+                        .font(.system(size: 60))
                         .foregroundColor(.green)
-                    Text("Select an image")
-                        .font(.headline)
-                        .foregroundColor(.green)
+                    
+                    Text("NapWorks Gallery")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    Text("Upload and manage your images")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-                .frame(width: 340, height: 200)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 15)
-                        .stroke(style: StrokeStyle(lineWidth: 2, dash: [10, 5]))
-                        .foregroundColor(.green)
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-            
-            // Divider with OR
-            HStack {
-                Divider().frame(height: 1).background(Color.black)
-                Text("OR").font(.body).foregroundColor(.gray).padding(.horizontal, 8)
-                Divider().frame(height: 1).background(Color.black)
-            }
-            .padding(.vertical, 10)
-
-            // Button to open the Gallery directly
-            Button(action: {
-                sourceType = .camera
-                showingImagePicker = true
-            }) {
+                .padding(.bottom, 20)
+                
+                // Select from Photo Library Button
+                Button(action: {
+                    openPhotoLibrary()
+                }) {
+                    VStack(spacing: 15) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 50))
+                            .foregroundColor(.green)
+                        Text("Select from Photos")
+                            .font(.headline)
+                            .foregroundColor(.green)
+                        Text("Choose from your photo library")
+                            .font(.caption)
+                            .foregroundColor(.green.opacity(0.7))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 160)
+                    .background(Color.green.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(style: StrokeStyle(lineWidth: 2, dash: [12, 6]))
+                            .foregroundColor(.green)
+                    )
+                    .cornerRadius(20)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Divider with OR
                 HStack {
-                    Image(systemName: "camera.fill")
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(.green.opacity(0.3))
+                    
+                    Text("OR")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                         .foregroundColor(.green)
-                    Text("Browse camera")
-                        .foregroundColor(.green)
+                        .padding(.horizontal, 16)
+                        .background(Color(.systemBackground))
+                    
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(.green.opacity(0.3))
                 }
+                .padding(.vertical, 10)
+
+                // Camera Button
+                Button(action: {
+                    openCamera()
+                }) {
+                    HStack(spacing: 15) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.green)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Take Photo")
+                                .font(.headline)
+                                .foregroundColor(.green)
+                            Text("Capture with camera")
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.green.opacity(0.6))
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.green.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.green, lineWidth: 1.5)
+                    )
+                    .cornerRadius(16)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Spacer()
+                
             }
-            .frame(width: 340, height: 50)
-            .overlay(
-                RoundedRectangle(cornerRadius: 15)
-                    .stroke(style: StrokeStyle(lineWidth: 2, dash: [10, 5]))
-                    .foregroundColor(.green)
-            )
+            .padding(.horizontal, 24)
+            .navigationTitle("Upload")
         }
-        .padding()
-        // First sheet: Image Picker
+        // Image Picker Sheet
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(sourceType: sourceType) { image in
                 self.selectedImage = IdentifiableImage(image: image)
             }
-
         }
-        // Second sheet: Detail screen
+        // Upload Detail Sheet
         .sheet(item: $selectedImage) { item in
             UploadDetailScreen(image: item.image)
         }
+    }
+    
+    // MARK: - Helper Methods
+    private func openPhotoLibrary() {
+        sourceType = .photoLibrary
+        showingImagePicker = true
+    }
+    
+    private func openCamera() {
+        // Check if camera is available
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            print("Camera not available")
+            return
+        }
+        sourceType = .camera
+        showingImagePicker = true
     }
 }
 

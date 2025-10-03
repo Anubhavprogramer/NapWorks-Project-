@@ -8,9 +8,22 @@
 import SwiftUI
 
 struct ContentView: View {
+    
+    init() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor.systemGray4  // custom background
+        appearance.stackedLayoutAppearance.selected.iconColor = .systemGreen
+        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor.systemGreen]
+        appearance.shadowColor = UIColor.systemGray3
+        
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+    
     var body: some View {
         TabView{
-            UploadScreen()
+            MainScreen()
                 .tabItem {
                     Image(systemName: "house")
                     Text("Upload")

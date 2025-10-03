@@ -62,12 +62,18 @@ struct ImagesScreen: View {
             DispatchQueue.main.async {
                 self.images = fetchedImages
                 self.isLoading = false
+                print("Loaded \(fetchedImages.count) images from database")
+                
+                // Debug: Check if we should show empty state
+                if fetchedImages.isEmpty {
+                    print("Database is empty - should show empty screen")
+                }
             }
         }
     }
     
     private func deleteImage(_ imageItem: UploadedImage) {
-        // Remove from UI immediately
+        // Remove from UI immediately for better UX
         if let index = images.firstIndex(where: { $0.id == imageItem.id }) {
             images.remove(at: index)
         }
@@ -81,6 +87,8 @@ struct ImagesScreen: View {
                     self.images.append(imageItem)
                 } else {
                     print("Image deleted successfully from both Storage and Firestore")
+                    // Reload data from database to ensure UI is in sync
+                    self.loadImages()
                 }
             }
         }

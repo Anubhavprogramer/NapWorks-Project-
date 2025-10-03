@@ -50,18 +50,32 @@ class FirebaseManager {
     }
     
     func fetchAllImages(completion: @escaping ([UploadedImage]) -> Void) {
+        print("🔍 Fetching images from Firestore...")
         firestore.collection("images").order(by: "timestamp", descending: true).getDocuments { snapshot, error in
             var images: [UploadedImage] = []
+            
+            if let error = error {
+                print("❌ Error fetching images: \(error)")
+                completion([])
+                return
+            }
+            
             if let documents = snapshot?.documents {
+                print("📄 Found \(documents.count) documents in Firestore")
                 for doc in documents {
                     let data = doc.data()
                     if let name = data["name"] as? String,
                        let url = data["url"] as? String {
                         let storagePath = data["storagePath"] as? String ?? "images/\(name).jpg"
                         images.append(UploadedImage(id: doc.documentID, name: name, url: url, storagePath: storagePath))
+                        print("✅ Added image: \(name)")
                     }
                 }
+            } else {
+                print("📭 No documents found in collection")
             }
+            
+            print("🎯 Returning \(images.count) images")
             completion(images)
         }
     }

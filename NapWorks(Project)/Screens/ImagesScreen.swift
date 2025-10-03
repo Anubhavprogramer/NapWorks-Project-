@@ -2,8 +2,7 @@ import SwiftUI
 
 struct ImagesScreen: View {
    
-    @State private var images: [UploadedImage] = []
-    @State private var isLoading: Bool = true
+    @StateObject private var firebaseManager = FirebaseManager.shared
     @State private var showDeleteAlert = false
     @State private var imageToDelete: UploadedImage?
     
@@ -15,17 +14,17 @@ struct ImagesScreen: View {
     var body: some View {
         NavigationView {
             Group {
-                if isLoading {
+                if firebaseManager.isLoading {
                     ProgressView("Loading...")
                         .padding()
-                } else if images.isEmpty {
+                } else if firebaseManager.images.isEmpty {
                     ContentUnavailableView("No Images", 
                                          systemImage: "photo.on.rectangle.angled",
                                          description: Text("Upload your first image to get started"))
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 15) {
-                            ForEach(images) { imageItem in
+                            ForEach(firebaseManager.images) { imageItem in
                                 CardView(imageItem: imageItem, deleteAction: {
                                     imageToDelete = imageItem
                                     showDeleteAlert = true
@@ -36,14 +35,20 @@ struct ImagesScreen: View {
                         .padding(.top, 10)
                     }
                     .refreshable {
-                        loadImages()
+                        // Manual refresh if needed (though real-time updates make this less necessary)
+                        firebaseManager.stopListeningToImages()
+                        firebaseManager.startListeningToImages()
                     }
                 }
             }
             .navigationTitle("Gallery")
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
-                loadImages()
+                firebaseManager.startListeningToImages()
+            }
+            .onDisappear {
+                // Don't stop listener on disappear to maintain real-time updates
+                // Only stop when app is truly done with this data
             }
             .alert("Delete Image", isPresented: $showDeleteAlert, presenting: imageToDelete) { imageItem in
                 Button("Cancel", role: .cancel) { }
@@ -56,40 +61,16 @@ struct ImagesScreen: View {
         }
     }
     
-    private func loadImages() {
-        isLoading = true
-        FirebaseManager.shared.fetchAllImages { fetchedImages in
-            DispatchQueue.main.async {
-                self.images = fetchedImages
-                self.isLoading = false
-                print("Loaded \(fetchedImages.count) images from database")
-                
-                // Debug: Check if we should show empty state
-                if fetchedImages.isEmpty {
-                    print("Database is empty - should show empty screen")
-                }
-            }
-        }
-    }
-    
     private func deleteImage(_ imageItem: UploadedImage) {
-        // Remove from UI immediately for better UX
-        if let index = images.firstIndex(where: { $0.id == imageItem.id }) {
-            images.remove(at: index)
-        }
+        print("🗑️ Deleting image: \(imageItem.name)")
         
-        // Delete from Firebase (both Storage and Firestore)
+        // No need to manually update UI - real-time listener will handle it
         FirebaseManager.shared.deleteImage(imageItem: imageItem) { error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    print("Error deleting image: \(error)")
-                    // Add back to UI if deletion failed
-                    self.images.append(imageItem)
-                } else {
-                    print("Image deleted successfully from both Storage and Firestore")
-                    // Reload data from database to ensure UI is in sync
-                    self.loadImages()
-                }
+            if let error = error {
+                print("❌ Error deleting image: \(error)")
+                // Could show an alert to user here
+            } else {
+                print("✅ Image deleted successfully - UI will update automatically via listener")
             }
         }
     }
@@ -98,34 +79,52 @@ struct ImagesScreen: View {
 struct CardView: View {
     let imageItem: UploadedImage
     let deleteAction: () -> Void
+    @State private var loadedImage: UIImage?
+    @State private var isLoading = false
+    @State private var hasError = false
+    @State private var retryCount = 0
     
     var body: some View {
         VStack(spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                AsyncImage(url: URL(string: imageItem.url)) { phase in
-                    switch phase {
-                    case .empty:
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(height: 150)
-                            .redacted(reason: .placeholder)
-                    case .success(let image):
-                        image
+                Group {
+                    if let loadedImage = loadedImage {
+                        Image(uiImage: loadedImage)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(height: 150)
                             .clipped()
                             .cornerRadius(12)
-                    case .failure:
+                    } else if isLoading {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 150)
+                            .overlay(
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            )
+                    } else if hasError {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color.gray.opacity(0.1))
                             .frame(height: 150)
                             .overlay(
-                                Image(systemName: "exclamationmark.triangle")
-                                    .foregroundColor(.orange)
+                                VStack(spacing: 8) {
+                                    Image(systemName: "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.gray)
+                                    Text("Tap to retry")
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
+                                }
                             )
-                    @unknown default:
-                        EmptyView()
+                            .onTapGesture {
+                                loadImage()
+                            }
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 150)
+                            .redacted(reason: .placeholder)
                     }
                 }
                 
@@ -145,5 +144,55 @@ struct CardView: View {
         .background(Color(.systemBackground))
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .onAppear {
+            if loadedImage == nil && !isLoading {
+                loadImage()
+            }
+        }
+    }
+    
+    private func loadImage() {
+        guard let url = URL(string: imageItem.url) else {
+            hasError = true
+            return
+        }
+        
+        isLoading = true
+        hasError = false
+        retryCount += 1
+        
+        print("📱 Loading image: \(imageItem.name) (Attempt \(retryCount))")
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                self.isLoading = false
+                
+                if let error = error {
+                    print("❌ Failed to load image: \(imageItem.name) - \(error.localizedDescription)")
+                    
+                    if retryCount < 3 {
+                        // Auto-retry with exponential backoff
+                        let delay = Double(retryCount) * 1.0
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            self.loadImage()
+                        }
+                    } else {
+                        self.hasError = true
+                    }
+                    return
+                }
+                
+                guard let data = data, let image = UIImage(data: data) else {
+                    print("❌ Invalid image data for: \(imageItem.name)")
+                    self.hasError = true
+                    return
+                }
+                
+                print("✅ Successfully loaded image: \(imageItem.name)")
+                self.loadedImage = image
+                self.hasError = false
+                self.retryCount = 0
+            }
+        }.resume()
     }
 }

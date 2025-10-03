@@ -12,6 +12,7 @@ struct UploadedImage: Identifiable {
     let id: String
     let name: String
     let url: String
+    let storagePath: String
 }
 
 struct IdentifiableImage: Identifiable {

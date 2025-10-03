@@ -11,9 +11,10 @@ class FirebaseManager {
     let storage = Storage.storage()
     let firestore = Firestore.firestore()
 
-    func uploadImage(image: UIImage, imageName: String, completion: @escaping (Result<String, Error>) -> Void) {
+    func uploadImage(image: UIImage, imageName: String, completion: @escaping (Result<(String, String), Error>) -> Void) {
 
-        let storageRef = storage.reference().child("images/\(imageName).jpg")
+        let storagePath = "images/\(imageName).jpg"
+        let storageRef = storage.reference().child(storagePath)
 
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
             completion(.failure(NSError(domain: "ImageConversion", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image"])))
@@ -33,16 +34,17 @@ class FirebaseManager {
                 if let error = error {
                     completion(.failure(error))
                 } else if let url = url {
-                    completion(.success(url.absoluteString))
+                    completion(.success((url.absoluteString, storagePath)))
                 }
             }
         }
     }
 
-    func saveImageMetadata(name: String, url: String, completion: @escaping (Error?) -> Void) {
+    func saveImageMetadata(name: String, url: String, storagePath: String, completion: @escaping (Error?) -> Void) {
         firestore.collection("images").addDocument(data: [
             "name": name,
             "url": url,
+            "storagePath": storagePath,
             "timestamp": Timestamp()
         ], completion: completion)
     }
@@ -55,7 +57,8 @@ class FirebaseManager {
                     let data = doc.data()
                     if let name = data["name"] as? String,
                        let url = data["url"] as? String {
-                        images.append(UploadedImage(id: doc.documentID, name: name, url: url))
+                        let storagePath = data["storagePath"] as? String ?? "images/\(name).jpg"
+                        images.append(UploadedImage(id: doc.documentID, name: name, url: url, storagePath: storagePath))
                     }
                 }
             }
@@ -63,18 +66,24 @@ class FirebaseManager {
         }
     }
     
-    func deleteImage(imageId: String, completion: @escaping (Error?) -> Void) {
-        // Delete Firestore document
-        firestore.collection("images").document(imageId).delete { error in
-            if let error = error {
-                completion(error)
-                return
+    func deleteImage(imageItem: UploadedImage, completion: @escaping (Error?) -> Void) {
+        // First delete from Storage
+        let storageRef = storage.reference().child(imageItem.storagePath)
+        storageRef.delete { storageError in
+            if let storageError = storageError {
+                print("Error deleting from storage: \(storageError)")
+                // Even if storage deletion fails, try to delete Firestore document
             }
             
-            // Optionally delete from Storage
-            let storageRef = self.storage.reference().child("images/\(imageId).jpg")
-            storageRef.delete { error in
-                completion(error)
+            // Then delete Firestore document
+            self.firestore.collection("images").document(imageItem.id).delete { firestoreError in
+                if let firestoreError = firestoreError {
+                    completion(firestoreError)
+                } else if let storageError = storageError {
+                    completion(storageError)
+                } else {
+                    completion(nil)
+                }
             }
         }
     }

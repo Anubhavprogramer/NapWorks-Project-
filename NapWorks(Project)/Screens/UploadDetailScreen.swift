@@ -55,7 +55,14 @@ struct UploadDetailScreen: View {
     }
     
     private func uploadImage() {
-        print("Uploading \(imageName)...")
+        FirebaseManager.shared.uploadImage(image, name: imageName) { result in
+            switch result {
+            case .success:
+                print("Uploaded & saved in database!")
+            case .failure(let error):
+                print("Failed: \(error.localizedDescription)")
+            }
+        }
         dismiss()
     }
 }

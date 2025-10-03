@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseCore
 
 struct ContentView: View {
     
@@ -19,6 +20,8 @@ struct ContentView: View {
         
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
+        
+        FirebaseApp.configure()
     }
     
     var body: some View {

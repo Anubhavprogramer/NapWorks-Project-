@@ -7,7 +7,8 @@
 
 import Foundation
 
-struct imageModel: Codable {
-    let largeImageURL: String
-    let referanceName: String
+struct ImageData: Codable {
+    let name: String
+    let url: String
+    let timestamp: Date
 }

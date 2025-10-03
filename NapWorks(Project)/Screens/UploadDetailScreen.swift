@@ -57,8 +57,8 @@ struct UploadDetailScreen: View {
         isUploading = true
         FirebaseManager.shared.uploadImage(image: image, imageName: imageName) { result in
             switch result {
-            case .success(let url):
-                FirebaseManager.shared.saveImageMetadata(name: imageName, url: url) { error in
+            case .success(let (url, storagePath)):
+                FirebaseManager.shared.saveImageMetadata(name: imageName, url: url, storagePath: storagePath) { error in
                     isUploading = false
                     if let error = error {
                         print("Firestore error: \(error)")

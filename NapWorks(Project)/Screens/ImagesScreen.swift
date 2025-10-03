@@ -2,10 +2,10 @@ import SwiftUI
 
 struct ImagesScreen: View {
    
-    @State private var images: [UploadedImage] = []
-    @State private var isLoading: Bool = true
+    @StateObject private var firebaseManager = FirebaseManager.shared
+    @State private var showDeleteAlert = false
+    @State private var imageToDelete: UploadedImage?
     
-    // 2 flexible columns
     let columns = [
         GridItem(.flexible(), spacing: 10),
         GridItem(.flexible(), spacing: 10)
@@ -14,52 +14,63 @@ struct ImagesScreen: View {
     var body: some View {
         NavigationView {
             Group {
-                if isLoading {
-                    ProgressView("Loading Images...")
+                if firebaseManager.isLoading {
+                    ProgressView("Loading...")
                         .padding()
-                } else if images.isEmpty {
-                    Text("No images uploaded yet")
-                        .foregroundColor(.gray)
-                        .padding()
+                } else if firebaseManager.images.isEmpty {
+                    ContentUnavailableView("No Images", 
+                                         systemImage: "photo.on.rectangle.angled",
+                                         description: Text("Upload your first image to get started"))
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 15) {
-                            ForEach(images) { imageItem in
+                            ForEach(firebaseManager.images) { imageItem in
                                 CardView(imageItem: imageItem, deleteAction: {
-                                    deleteImage(imageItem)
+                                    imageToDelete = imageItem
+                                    showDeleteAlert = true
                                 })
                             }
                         }
                         .padding(.horizontal)
                         .padding(.top, 10)
                     }
+                    .refreshable {
+                        // Manual refresh if needed (though real-time updates make this less necessary)
+                        firebaseManager.stopListeningToImages()
+                        firebaseManager.startListeningToImages()
+                    }
                 }
             }
-            .navigationTitle("Uploaded Images")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Gallery")
+            .navigationBarTitleDisplayMode(.large)
             .onAppear {
-                loadImages()
+                firebaseManager.startListeningToImages()
             }
-        }
-    }
-    
-    private func loadImages() {
-        isLoading = true
-        FirebaseManager.shared.fetchAllImages { fetchedImages in
-            self.images = fetchedImages
-            self.isLoading = false
+            .onDisappear {
+                // Don't stop listener on disappear to maintain real-time updates
+                // Only stop when app is truly done with this data
+            }
+            .alert("Delete Image", isPresented: $showDeleteAlert, presenting: imageToDelete) { imageItem in
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    deleteImage(imageItem)
+                }
+            } message: { imageItem in
+                Text("Are you sure you want to delete \"\(imageItem.name)\"?")
+            }
         }
     }
     
     private func deleteImage(_ imageItem: UploadedImage) {
-        if let index = images.firstIndex(where: { $0.id == imageItem.id }) {
-            images.remove(at: index)
-        }
-        FirebaseManager.shared.deleteImage(imageId: imageItem.id) { error in
+        print("🗑️ Deleting image: \(imageItem.name)")
+        
+        // No need to manually update UI - real-time listener will handle it
+        FirebaseManager.shared.deleteImage(imageItem: imageItem) { error in
             if let error = error {
-                print("Error deleting image: \(error)")
+                print("❌ Error deleting image: \(error)")
+                // Could show an alert to user here
             } else {
-                print("Image deleted successfully")
+                print("✅ Image deleted successfully - UI will update automatically via listener")
             }
         }
     }
@@ -68,45 +79,120 @@ struct ImagesScreen: View {
 struct CardView: View {
     let imageItem: UploadedImage
     let deleteAction: () -> Void
+    @State private var loadedImage: UIImage?
+    @State private var isLoading = false
+    @State private var hasError = false
+    @State private var retryCount = 0
     
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                AsyncImage(url: URL(string: imageItem.url)) { phase in
-                    switch phase {
-                    case .empty:
-                        Color.gray.opacity(0.2)
-                    case .success(let image):
-                        image
+                Group {
+                    if let loadedImage = loadedImage {
+                        Image(uiImage: loadedImage)
                             .resizable()
-                            .scaledToFill()
-                            .clipShape(RoundedRectangle(cornerRadius: 15))
-                    case .failure:
-                        Image(systemName: "photo")
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundColor(.red)
-                    @unknown default:
-                        EmptyView()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 150)
+                            .clipped()
+                            .cornerRadius(12)
+                    } else if isLoading {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 150)
+                            .overlay(
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            )
+                    } else if hasError {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(height: 150)
+                            .overlay(
+                                VStack(spacing: 8) {
+                                    Image(systemName: "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.gray)
+                                    Text("Tap to retry")
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
+                                }
+                            )
+                            .onTapGesture {
+                                loadImage()
+                            }
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 150)
+                            .redacted(reason: .placeholder)
                     }
                 }
                 
                 Button(action: deleteAction) {
-                    Image(systemName: "trash.circle.fill")
-                        .foregroundColor(.red)
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundStyle(.white, .red)
                         .font(.title2)
-                        .padding(5)
                 }
+                .padding(8)
             }
             
             Text(imageItem.name)
-                .font(.caption)
+                .font(.footnote)
                 .lineLimit(1)
-                .padding(.horizontal, 5)
-                .padding(.bottom, 5)
+                .foregroundColor(.primary)
         }
-        .background(Color.white)
-        .cornerRadius(10)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .onAppear {
+            if loadedImage == nil && !isLoading {
+                loadImage()
+            }
+        }
+    }
+    
+    private func loadImage() {
+        guard let url = URL(string: imageItem.url) else {
+            hasError = true
+            return
+        }
+        
+        isLoading = true
+        hasError = false
+        retryCount += 1
+        
+        print("📱 Loading image: \(imageItem.name) (Attempt \(retryCount))")
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                self.isLoading = false
+                
+                if let error = error {
+                    print("❌ Failed to load image: \(imageItem.name) - \(error.localizedDescription)")
+                    
+                    if retryCount < 3 {
+                        // Auto-retry with exponential backoff
+                        let delay = Double(retryCount) * 1.0
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            self.loadImage()
+                        }
+                    } else {
+                        self.hasError = true
+                    }
+                    return
+                }
+                
+                guard let data = data, let image = UIImage(data: data) else {
+                    print("❌ Invalid image data for: \(imageItem.name)")
+                    self.hasError = true
+                    return
+                }
+                
+                print("✅ Successfully loaded image: \(imageItem.name)")
+                self.loadedImage = image
+                self.hasError = false
+                self.retryCount = 0
+            }
+        }.resume()
     }
 }

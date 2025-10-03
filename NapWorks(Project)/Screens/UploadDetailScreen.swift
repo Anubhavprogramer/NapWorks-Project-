@@ -54,22 +54,32 @@ struct UploadDetailScreen: View {
     }
     
     private func uploadImage() {
+        print("📤 Starting image upload: \(imageName)")
         isUploading = true
         FirebaseManager.shared.uploadImage(image: image, imageName: imageName) { result in
             switch result {
             case .success(let (url, storagePath)):
+                print("✅ Image uploaded to storage, saving metadata...")
                 FirebaseManager.shared.saveImageMetadata(name: imageName, url: url, storagePath: storagePath) { error in
-                    isUploading = false
-                    if let error = error {
-                        print("Firestore error: \(error)")
-                    } else {
-                        print("Upload successful")
-                        dismiss()
+                    DispatchQueue.main.async {
+                        self.isUploading = false
+                        if let error = error {
+                            print("❌ Firestore error: \(error.localizedDescription)")
+                        } else {
+                            print("🎉 Upload successful! Metadata saved.")
+                            // Force refresh the images list
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                FirebaseManager.shared.startListeningToImages()
+                            }
+                            dismiss()
+                        }
                     }
                 }
             case .failure(let error):
-                isUploading = false
-                print("Upload error: \(error)")
+                DispatchQueue.main.async {
+                    self.isUploading = false
+                    print("❌ Upload error: \(error.localizedDescription)")
+                }
             }
         }
     }

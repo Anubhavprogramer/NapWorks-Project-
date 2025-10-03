@@ -1,6 +1,7 @@
 import Foundation
 import FirebaseStorage
 import FirebaseFirestore
+import FirebaseAuth
 import UIKit
 
 class FirebaseManager: ObservableObject {
@@ -17,9 +18,14 @@ class FirebaseManager: ObservableObject {
     @Published var isLoading: Bool = true
 
     func uploadImage(image: UIImage, imageName: String, completion: @escaping (Result<(String, String), Error>) -> Void) {
-        print("📤 Starting upload for: \(imageName)")
+        guard let userId = Auth.auth().currentUser?.uid else {
+            completion(.failure(NSError(domain: "Auth", code: 0, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])))
+            return
+        }
         
-        let storagePath = "images/\(imageName).jpg"
+        print("📤 Starting upload for: \(imageName) for user: \(userId)")
+        
+        let storagePath = "users/\(userId)/images/\(imageName).jpg"
         let storageRef = storage.reference().child(storagePath)
 
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
@@ -53,28 +59,51 @@ class FirebaseManager: ObservableObject {
     }
 
     func saveImageMetadata(name: String, url: String, storagePath: String, completion: @escaping (Error?) -> Void) {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            completion(NSError(domain: "Auth", code: 0, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"]))
+            return
+        }
+        
         firestore.collection("images").addDocument(data: [
             "name": name,
             "url": url,
             "storagePath": storagePath,
+            "userId": userId,
             "timestamp": Timestamp()
         ], completion: completion)
     }
     
     // MARK: - Real-time Image Listening (like messaging apps)
     func startListeningToImages() {
-        guard imagesListener == nil else { return } // Prevent multiple listeners
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("❌ Cannot start listening - user not authenticated")
+            DispatchQueue.main.async {
+                self.images = []
+                self.isLoading = false
+            }
+            return
+        }
         
-        print("🎧 Starting real-time listener for images...")
-        isLoading = true
+        // Stop existing listener if any
+        if imagesListener != nil {
+            print("🔄 Stopping existing listener before starting new one")
+            stopListeningToImages()
+        }
+        
+        print("🎧 Starting real-time listener for images for user: \(userId)...")
+        DispatchQueue.main.async {
+            self.isLoading = true
+        }
         
         imagesListener = firestore.collection("images")
-            .order(by: "timestamp", descending: true)
+            .whereField("userId", isEqualTo: userId)
+            // Temporarily remove ordering to avoid index requirement
+            // .order(by: "timestamp", descending: true)
             .addSnapshotListener { [weak self] snapshot, error in
                 guard let self = self else { return }
                 
                 if let error = error {
-                    print("❌ Real-time listener error: \(error)")
+                    print("❌ Real-time listener error: \(error.localizedDescription)")
                     DispatchQueue.main.async {
                         self.isLoading = false
                     }
@@ -90,19 +119,30 @@ class FirebaseManager: ObservableObject {
                     return
                 }
                 
+                print("📊 Snapshot received with \(snapshot.documents.count) documents")
                 var newImages: [UploadedImage] = []
                 
-                for doc in snapshot.documents {
+                for (index, doc) in snapshot.documents.enumerated() {
                     let data = doc.data()
+                    print("📄 Document \(index + 1): \(doc.documentID)")
+                    print("   Data: \(data)")
+                    
                     if let name = data["name"] as? String,
                        let url = data["url"] as? String {
-                        let storagePath = data["storagePath"] as? String ?? "images/\(name).jpg"
-                        newImages.append(UploadedImage(id: doc.documentID, name: name, url: url, storagePath: storagePath))
+                        let storagePath = data["storagePath"] as? String ?? "users/\(userId)/images/\(name).jpg"
+                        let imageItem = UploadedImage(id: doc.documentID, name: name, url: url, storagePath: storagePath)
+                        newImages.append(imageItem)
+                        print("   ✅ Added image: \(name)")
+                    } else {
+                        print("   ❌ Missing required fields in document")
                     }
                 }
                 
+                // Sort by name on client side (you can change this to any sorting you prefer)
+                newImages.sort { $0.name < $1.name }
+                
                 DispatchQueue.main.async {
-                    print("🔄 Real-time update: \(newImages.count) images")
+                    print("🔄 Real-time update: \(newImages.count) images for user")
                     self.images = newImages
                     self.isLoading = false
                 }
@@ -117,34 +157,43 @@ class FirebaseManager: ObservableObject {
     
     // MARK: - Legacy fetch method (for fallback if needed)
     func fetchAllImages(completion: @escaping ([UploadedImage]) -> Void) {
-        print("🔍 Fetching images from Firestore...")
-        firestore.collection("images").order(by: "timestamp", descending: true).getDocuments { snapshot, error in
-            var images: [UploadedImage] = []
-            
-            if let error = error {
-                print("❌ Error fetching images: \(error)")
-                completion([])
-                return
-            }
-            
-            if let documents = snapshot?.documents {
-                print("📄 Found \(documents.count) documents in Firestore")
-                for doc in documents {
-                    let data = doc.data()
-                    if let name = data["name"] as? String,
-                       let url = data["url"] as? String {
-                        let storagePath = data["storagePath"] as? String ?? "images/\(name).jpg"
-                        images.append(UploadedImage(id: doc.documentID, name: name, url: url, storagePath: storagePath))
-                        print("✅ Added image: \(name)")
-                    }
-                }
-            } else {
-                print("📭 No documents found in collection")
-            }
-            
-            print("🎯 Returning \(images.count) images")
-            completion(images)
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("❌ Cannot fetch images - user not authenticated")
+            completion([])
+            return
         }
+        
+        print("🔍 Fetching images from Firestore for user: \(userId)...")
+        firestore.collection("images")
+            .whereField("userId", isEqualTo: userId)
+            .order(by: "timestamp", descending: true)
+            .getDocuments { snapshot, error in
+                var images: [UploadedImage] = []
+                
+                if let error = error {
+                    print("❌ Error fetching images: \(error)")
+                    completion([])
+                    return
+                }
+                
+                if let documents = snapshot?.documents {
+                    print("📄 Found \(documents.count) documents in Firestore for user")
+                    for doc in documents {
+                        let data = doc.data()
+                        if let name = data["name"] as? String,
+                           let url = data["url"] as? String {
+                            let storagePath = data["storagePath"] as? String ?? "users/\(userId)/images/\(name).jpg"
+                            images.append(UploadedImage(id: doc.documentID, name: name, url: url, storagePath: storagePath))
+                            print("✅ Added image: \(name)")
+                        }
+                    }
+                } else {
+                    print("📭 No documents found in collection for user")
+                }
+                
+                print("🎯 Returning \(images.count) images for user")
+                completion(images)
+            }
     }
     
     func deleteImage(imageItem: UploadedImage, completion: @escaping (Error?) -> Void) {
@@ -167,6 +216,32 @@ class FirebaseManager: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Debug Methods
+    func testFirestoreConnection() {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("❌ No authenticated user for test")
+            return
+        }
+        
+        print("🧪 Testing Firestore connection for user: \(userId)")
+        
+        // Test reading
+        firestore.collection("images")
+            .whereField("userId", isEqualTo: userId)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("❌ Firestore read test failed: \(error.localizedDescription)")
+                } else if let snapshot = snapshot {
+                    print("✅ Firestore read test successful: \(snapshot.documents.count) documents")
+                    for doc in snapshot.documents {
+                        print("   📄 Document: \(doc.documentID) - \(doc.data())")
+                    }
+                } else {
+                    print("⚠️ Firestore read test returned nil snapshot")
+                }
+            }
     }
 
     // MARK: - Cleanup

@@ -9,6 +9,7 @@ import SwiftUI
 import FirebaseCore
 
 struct ContentView: View {
+    @StateObject private var authManager = AuthManager.shared
     
     init() {
         let appearance = UITabBarAppearance()
@@ -25,18 +26,27 @@ struct ContentView: View {
     }
     
     var body: some View {
-        TabView{
-            MainScreen()
-                .tabItem {
-                    Image(systemName: "house")
-                    Text("Upload")
+        Group {
+            if authManager.isAuthenticated {
+                TabView{
+                    MainScreen()
+                        .tabItem {
+                            Image(systemName: "house")
+                            Text("Upload")
+                        }
+                    
+                    ImagesScreen()
+                        .tabItem {
+                            Image(systemName: "person.crop.circle")
+                            Text("Images")
+                        }
                 }
-            
-            ImagesScreen()
-                .tabItem {
-                    Image(systemName: "person.crop.circle")
-                    Text("Images")
-                }
+            } else {
+                LoginScreen()
+            }
+        }
+        .onAppear {
+            authManager.checkAuthenticationState()
         }
     }
 }

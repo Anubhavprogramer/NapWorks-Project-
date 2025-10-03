@@ -3,8 +3,10 @@ import SwiftUI
 struct ImagesScreen: View {
    
     @StateObject private var firebaseManager = FirebaseManager.shared
+    @StateObject private var authManager = AuthManager.shared
     @State private var showDeleteAlert = false
     @State private var imageToDelete: UploadedImage?
+    @State private var showLogoutAlert = false
     
     let columns = [
         GridItem(.flexible(), spacing: 10),
@@ -43,8 +45,33 @@ struct ImagesScreen: View {
             }
             .navigationTitle("Gallery")
             .navigationBarTitleDisplayMode(.large)
+            .navigationBarItems(
+                leading: Button(action: {
+                    showLogoutAlert = true
+                }) {
+                    HStack {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                        Text("Logout")
+                    }
+                    .foregroundColor(.red)
+                },
+                trailing: Button("Debug") {
+                    debugFirestore()
+                }
+                .foregroundColor(.blue)
+            )
             .onAppear {
+                print("🎯 ImagesScreen appeared - starting listener")
                 firebaseManager.startListeningToImages()
+            }
+            .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
+                if isAuthenticated {
+                    print("🔐 User authenticated - restarting image listener")
+                    firebaseManager.startListeningToImages()
+                } else {
+                    print("🚪 User logged out - stopping image listener")
+                    firebaseManager.stopListeningToImages()
+                }
             }
             .onDisappear {
                 // Don't stop listener on disappear to maintain real-time updates
@@ -57,6 +84,14 @@ struct ImagesScreen: View {
                 }
             } message: { imageItem in
                 Text("Are you sure you want to delete \"\(imageItem.name)\"?")
+            }
+            .alert("Logout", isPresented: $showLogoutAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Logout", role: .destructive) {
+                    logout()
+                }
+            } message: {
+                Text("Are you sure you want to logout?")
             }
         }
     }
@@ -72,6 +107,26 @@ struct ImagesScreen: View {
             } else {
                 print("✅ Image deleted successfully - UI will update automatically via listener")
             }
+        }
+    }
+    
+    private func logout() {
+        authManager.signOut { success in
+            if success {
+                // Stop listening to images when user logs out
+                firebaseManager.stopListeningToImages()
+            }
+        }
+    }
+    
+    private func debugFirestore() {
+        print("🐛 Debug button pressed")
+        firebaseManager.testFirestoreConnection()
+        
+        // Also restart listener
+        firebaseManager.stopListeningToImages()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            firebaseManager.startListeningToImages()
         }
     }
 }

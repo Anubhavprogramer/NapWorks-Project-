@@ -10,6 +10,7 @@
 		745158642E9003D8001AB973 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 745158632E9003D8001AB973 /* FirebaseCore */; };
 		745158662E9003D8001AB973 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 745158652E9003D8001AB973 /* FirebaseFirestore */; };
 		745158682E9003D8001AB973 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 745158672E9003D8001AB973 /* FirebaseStorage */; };
+		745158BF2E906160001AB973 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 745158BE2E906160001AB973 /* FirebaseAuth */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 				745158642E9003D8001AB973 /* FirebaseCore in Frameworks */,
 				745158662E9003D8001AB973 /* FirebaseFirestore in Frameworks */,
 				745158682E9003D8001AB973 /* FirebaseStorage in Frameworks */,
+				745158BF2E906160001AB973 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +79,7 @@
 				745158632E9003D8001AB973 /* FirebaseCore */,
 				745158652E9003D8001AB973 /* FirebaseFirestore */,
 				745158672E9003D8001AB973 /* FirebaseStorage */,
+				745158BE2E906160001AB973 /* FirebaseAuth */,
 			);
 			productName = "NapWorks(Project)";
 			productReference = 745158442E8FB670001AB973 /* NapWorks(Project).app */;
@@ -370,6 +373,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 745158622E9003D8001AB973 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseStorage;
+		};
+		745158BE2E906160001AB973 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 745158622E9003D8001AB973 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

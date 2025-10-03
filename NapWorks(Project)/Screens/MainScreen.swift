@@ -8,15 +8,17 @@
 import SwiftUI
 
 struct MainScreen: View {
-    
+   
     @State private var showingImagePicker = false
     @State private var sourceType: UIImagePickerController.SourceType = .photoLibrary
-    @State private var selectedImage: Image? = nil
+    @State private var selectedUIImage: UIImage? = nil   // Store real UIImage
+    @State private var showDetailScreen = false          // Controls modal
     
     var body: some View {
         VStack(spacing: 20) {
             
-            // Image or Placeholder (Clickable)
+            // Image or Placeholder
+           
             Button(action: {
                 sourceType = .photoLibrary
                 showingImagePicker = true
@@ -36,36 +38,26 @@ struct MainScreen: View {
                         .foregroundColor(.green)
                 )
             }
-            .buttonStyle(PlainButtonStyle()) // Prevents default button styling
+            .buttonStyle(PlainButtonStyle())
             
-            // Divider with Text
             
+            // Divider with OR
             HStack {
-                Divider()
-                    .frame(height: 1)
-                    .background(Color.black)
-                
-                Text("OR")
-                    .font(.body)
-                    .foregroundColor(.gray)
-                    .padding(.horizontal, 8)
-                
-                Divider()
-                    .frame(height: 1)
-                    .background(Color.black)
+                Divider().frame(height: 1).background(Color.black)
+                Text("OR").font(.body).foregroundColor(.gray).padding(.horizontal, 8)
+                Divider().frame(height: 1).background(Color.black)
             }
             .padding(.vertical, 10)
 
             // Button to open the Gallery directly
-            
             Button(action: {
-                sourceType = .camera
+                sourceType = .photoLibrary
                 showingImagePicker = true
             }) {
                 HStack {
                     Image(systemName: "camera.fill")
                         .foregroundColor(.green)
-                    Text("Open Camera")
+                    Text("Browse Gallery")
                         .foregroundColor(.green)
                 }
             }
@@ -77,12 +69,19 @@ struct MainScreen: View {
             )
         }
         .padding()
+        // First sheet: Image Picker
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(sourceType: sourceType) { image in
-                self.selectedImage = Image(uiImage: image)
+                self.selectedUIImage = image
+                self.showDetailScreen = true
             }
         }
-        .edgesIgnoringSafeArea(.all)
+        // Second sheet: Detail screen
+        .sheet(isPresented: $showDetailScreen) {
+            if let selectedUIImage = selectedUIImage {
+                UploadDetailScreen(image: selectedUIImage)
+            }
+        }
     }
 }
 

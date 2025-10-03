@@ -1,9 +1,3 @@
-//
-//  UploadDetailScreen.swift
-//  NapWorks(Project)
-//
-//  Created by Anubhav Dubey on 03/10/25.
-//
 import SwiftUI
 
 struct UploadDetailScreen: View {
@@ -11,6 +5,7 @@ struct UploadDetailScreen: View {
     @Environment(\.dismiss) var dismiss
     
     @State private var imageName: String = ""
+    @State private var isUploading: Bool = false
     
     var body: some View {
         NavigationView {
@@ -19,7 +14,6 @@ struct UploadDetailScreen: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-//                    .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 15))
                 
                 TextField("Reference Name", text: $imageName)
@@ -30,18 +24,23 @@ struct UploadDetailScreen: View {
                             .stroke(Color.black, lineWidth: 1)
                     )
                     .frame(width: 340)
-
                 
                 Button(action: {
                     uploadImage()
                 }) {
-                    Text("Submit")
-                        .fontWeight(.bold)
-                        .frame(width: 100, height: 50)
-                        .background(Color.green)
-                        .foregroundColor(.white)
-                        .cornerRadius(15)
+                    if isUploading {
+                        ProgressView()
+                            .frame(width: 100, height: 50)
+                    } else {
+                        Text("Submit")
+                            .fontWeight(.bold)
+                            .frame(width: 100, height: 50)
+                            .background(imageName.isEmpty ? Color.gray : Color.green)
+                            .foregroundColor(.white)
+                            .cornerRadius(15)
+                    }
                 }
+                .disabled(imageName.isEmpty || isUploading) // disable if name is empty or uploading
                 
                 Spacer()
             }
@@ -55,14 +54,23 @@ struct UploadDetailScreen: View {
     }
     
     private func uploadImage() {
-        FirebaseManager.shared.uploadImage(image, name: imageName) { result in
+        isUploading = true
+        FirebaseManager.shared.uploadImage(image: image, imageName: imageName) { result in
             switch result {
-            case .success:
-                print("Uploaded & saved in database!")
+            case .success(let url):
+                FirebaseManager.shared.saveImageMetadata(name: imageName, url: url) { error in
+                    isUploading = false
+                    if let error = error {
+                        print("Firestore error: \(error)")
+                    } else {
+                        print("Upload successful")
+                        dismiss()
+                    }
+                }
             case .failure(let error):
-                print("Failed: \(error.localizedDescription)")
+                isUploading = false
+                print("Upload error: \(error)")
             }
         }
-        dismiss()
     }
 }

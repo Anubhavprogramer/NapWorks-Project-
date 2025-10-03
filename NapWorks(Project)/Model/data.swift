@@ -6,9 +6,15 @@
 //
 
 import Foundation
+import UIKit
 
-struct ImageData: Codable {
+struct UploadedImage: Identifiable {
+    let id: String
     let name: String
     let url: String
-    let timestamp: Date
+}
+
+struct IdentifiableImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
 }

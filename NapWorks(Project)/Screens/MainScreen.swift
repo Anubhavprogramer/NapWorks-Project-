@@ -7,12 +7,15 @@
 
 import SwiftUI
 
+
+
 struct MainScreen: View {
    
     @State private var showingImagePicker = false
     @State private var sourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var selectedUIImage: UIImage? = nil   // Store real UIImage
-    @State private var showDetailScreen = false          // Controls modal
+    @State private var showDetailScreen = false  // Controls modal
+    @State private var selectedImage: IdentifiableImage? = nil
     
     var body: some View {
         VStack(spacing: 20) {
@@ -72,15 +75,13 @@ struct MainScreen: View {
         // First sheet: Image Picker
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(sourceType: sourceType) { image in
-                self.selectedUIImage = image
-                self.showDetailScreen = true
+                self.selectedImage = IdentifiableImage(image: image)
             }
+
         }
         // Second sheet: Detail screen
-        .sheet(isPresented: $showDetailScreen) {
-            if let selectedUIImage = selectedUIImage {
-                UploadDetailScreen(image: selectedUIImage)
-            }
+        .sheet(item: $selectedImage) { item in
+            UploadDetailScreen(image: item.image)
         }
     }
 }

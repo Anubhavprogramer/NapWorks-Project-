@@ -86,11 +86,10 @@ class FirebaseManager: ObservableObject {
         
         // Stop existing listener if any
         if imagesListener != nil {
-            print("🔄 Stopping existing listener before starting new one")
             stopListeningToImages()
         }
         
-        print("🎧 Starting real-time listener for images for user: \(userId)...")
+        print("🎧 Starting real-time listener for images for user: \(userId)")
         DispatchQueue.main.async {
             self.isLoading = true
         }
@@ -111,7 +110,6 @@ class FirebaseManager: ObservableObject {
                 }
                 
                 guard let snapshot = snapshot else {
-                    print("📭 No snapshot data")
                     DispatchQueue.main.async {
                         self.images = []
                         self.isLoading = false
@@ -119,22 +117,16 @@ class FirebaseManager: ObservableObject {
                     return
                 }
                 
-                print("📊 Snapshot received with \(snapshot.documents.count) documents")
                 var newImages: [UploadedImage] = []
                 
-                for (index, doc) in snapshot.documents.enumerated() {
+                for doc in snapshot.documents {
                     let data = doc.data()
-                    print("📄 Document \(index + 1): \(doc.documentID)")
-                    print("   Data: \(data)")
                     
                     if let name = data["name"] as? String,
                        let url = data["url"] as? String {
                         let storagePath = data["storagePath"] as? String ?? "users/\(userId)/images/\(name).jpg"
                         let imageItem = UploadedImage(id: doc.documentID, name: name, url: url, storagePath: storagePath)
                         newImages.append(imageItem)
-                        print("   ✅ Added image: \(name)")
-                    } else {
-                        print("   ❌ Missing required fields in document")
                     }
                 }
                 
@@ -142,7 +134,7 @@ class FirebaseManager: ObservableObject {
                 newImages.sort { $0.name < $1.name }
                 
                 DispatchQueue.main.async {
-                    print("🔄 Real-time update: \(newImages.count) images for user")
+                    print("🔄 Loaded \(newImages.count) images")
                     self.images = newImages
                     self.isLoading = false
                 }
@@ -150,7 +142,6 @@ class FirebaseManager: ObservableObject {
     }
     
     func stopListeningToImages() {
-        print("🛑 Stopping real-time listener")
         imagesListener?.remove()
         imagesListener = nil
     }
@@ -216,32 +207,6 @@ class FirebaseManager: ObservableObject {
                 }
             }
         }
-    }
-
-    // MARK: - Debug Methods
-    func testFirestoreConnection() {
-        guard let userId = Auth.auth().currentUser?.uid else {
-            print("❌ No authenticated user for test")
-            return
-        }
-        
-        print("🧪 Testing Firestore connection for user: \(userId)")
-        
-        // Test reading
-        firestore.collection("images")
-            .whereField("userId", isEqualTo: userId)
-            .getDocuments { snapshot, error in
-                if let error = error {
-                    print("❌ Firestore read test failed: \(error.localizedDescription)")
-                } else if let snapshot = snapshot {
-                    print("✅ Firestore read test successful: \(snapshot.documents.count) documents")
-                    for doc in snapshot.documents {
-                        print("   📄 Document: \(doc.documentID) - \(doc.data())")
-                    }
-                } else {
-                    print("⚠️ Firestore read test returned nil snapshot")
-                }
-            }
     }
 
     // MARK: - Cleanup

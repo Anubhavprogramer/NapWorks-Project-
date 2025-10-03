@@ -45,31 +45,22 @@ struct ImagesScreen: View {
             }
             .navigationTitle("Gallery")
             .navigationBarTitleDisplayMode(.large)
-            .navigationBarItems(
-                leading: Button(action: {
-                    showLogoutAlert = true
-                }) {
-                    HStack {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                        Text("Logout")
-                    }
-                    .foregroundColor(.red)
-                },
-                trailing: Button("Debug") {
-                    debugFirestore()
+            .navigationBarItems(leading: Button(action: {
+                showLogoutAlert = true
+            }) {
+                HStack {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                    Text("Logout")
                 }
-                .foregroundColor(.blue)
-            )
+                .foregroundColor(.red)
+            })
             .onAppear {
-                print("🎯 ImagesScreen appeared - starting listener")
                 firebaseManager.startListeningToImages()
             }
             .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
                 if isAuthenticated {
-                    print("🔐 User authenticated - restarting image listener")
                     firebaseManager.startListeningToImages()
                 } else {
-                    print("🚪 User logged out - stopping image listener")
                     firebaseManager.stopListeningToImages()
                 }
             }
@@ -97,15 +88,9 @@ struct ImagesScreen: View {
     }
     
     private func deleteImage(_ imageItem: UploadedImage) {
-        print("🗑️ Deleting image: \(imageItem.name)")
-        
-        // No need to manually update UI - real-time listener will handle it
         FirebaseManager.shared.deleteImage(imageItem: imageItem) { error in
             if let error = error {
                 print("❌ Error deleting image: \(error)")
-                // Could show an alert to user here
-            } else {
-                print("✅ Image deleted successfully - UI will update automatically via listener")
             }
         }
     }
@@ -116,17 +101,6 @@ struct ImagesScreen: View {
                 // Stop listening to images when user logs out
                 firebaseManager.stopListeningToImages()
             }
-        }
-    }
-    
-    private func debugFirestore() {
-        print("🐛 Debug button pressed")
-        firebaseManager.testFirestoreConnection()
-        
-        // Also restart listener
-        firebaseManager.stopListeningToImages()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            firebaseManager.startListeningToImages()
         }
     }
 }
@@ -216,15 +190,11 @@ struct CardView: View {
         hasError = false
         retryCount += 1
         
-        print("📱 Loading image: \(imageItem.name) (Attempt \(retryCount))")
-        
         URLSession.shared.dataTask(with: url) { data, response, error in
             DispatchQueue.main.async {
                 self.isLoading = false
                 
                 if let error = error {
-                    print("❌ Failed to load image: \(imageItem.name) - \(error.localizedDescription)")
-                    
                     if retryCount < 3 {
                         // Auto-retry with exponential backoff
                         let delay = Double(retryCount) * 1.0
@@ -238,12 +208,10 @@ struct CardView: View {
                 }
                 
                 guard let data = data, let image = UIImage(data: data) else {
-                    print("❌ Invalid image data for: \(imageItem.name)")
                     self.hasError = true
                     return
                 }
                 
-                print("✅ Successfully loaded image: \(imageItem.name)")
                 self.loadedImage = image
                 self.hasError = false
                 self.retryCount = 0
